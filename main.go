@@ -30,7 +30,7 @@ func main() {
 		log.Fatalf("Failed to start bot: %v", err)
 	}
 
-	log.Println("Teto_reborn (Go Edition) is now running. Press CTRL-C to exit.")
+	log.Println("Teto (Go Edition) is now running. Press CTRL-C to exit.")
 	log.Println("Terminal commands: 'reload', 'annihilate'")
 
 	// Terminal command listener

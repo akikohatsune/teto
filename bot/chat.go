@@ -134,7 +134,7 @@ func downloadFile(url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-func (b *TetoBot) RunChatAndReplyInteraction(i *discordgo.InteractionCreate, prompt string) {
+func (b *TetoBot) RunChatAndReplyInteraction(i *discordgo.InteractionCreate, prompt string, isEphemeral bool) {
 	channelID, _ := strconv.ParseInt(i.ChannelID, 10, 64)
 	var guildID int64
 	if i.GuildID != "" {
@@ -149,14 +149,20 @@ func (b *TetoBot) RunChatAndReplyInteraction(i *discordgo.InteractionCreate, pro
 	}
 
 	reply, _ := b.generateChatReply(guildID, channelID, userID, userName, prompt, "interaction", nil)
-	b.SendLongFollowup(i, reply)
+	b.SendLongFollowup(i, reply, isEphemeral)
 }
 
-func (b *TetoBot) SendLongFollowup(i *discordgo.InteractionCreate, text string) {
+func (b *TetoBot) SendLongFollowup(i *discordgo.InteractionCreate, text string, isEphemeral bool) {
+	var flags discordgo.MessageFlags
+	if isEphemeral {
+		flags = discordgo.MessageFlagsEphemeral
+	}
+
 	maxLen := 1900
 	if len(text) <= maxLen {
 		b.Session.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 			Content: text,
+			Flags:   flags,
 		})
 		return
 	}
@@ -169,6 +175,7 @@ func (b *TetoBot) SendLongFollowup(i *discordgo.InteractionCreate, text string) 
 		chunk := text[iIdx:end]
 		b.Session.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 			Content: chunk,
+			Flags:   flags,
 		})
 	}
 }

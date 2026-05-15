@@ -74,10 +74,6 @@ func (s *ShortTermMemoryStore) Initialize() error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			PRIMARY KEY (guild_id, user_id)
 		)`,
-		`CREATE TABLE IF NOT EXISTS tos_agreements (
-			user_id INTEGER PRIMARY KEY,
-			agreed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
 		`CREATE TABLE IF NOT EXISTS privacy_preferences (
 			user_id INTEGER PRIMARY KEY,
 			opt_out_logging BOOLEAN NOT NULL DEFAULT 0
@@ -252,24 +248,6 @@ func (s *ShortTermMemoryStore) GetUserCallPreferences(guildID int64, userID int6
 		return "", "", nil
 	}
 	return userCallsTeto.String, TetoCallsUser.String, err
-}
-
-func (s *ShortTermMemoryStore) HasAgreedToToS(userID int64) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	var exists int
-	err := s.db.QueryRow("SELECT 1 FROM tos_agreements WHERE user_id = ?", userID).Scan(&exists)
-	if err == sql.ErrNoRows {
-		return false, nil
-	}
-	return exists == 1, err
-}
-
-func (s *ShortTermMemoryStore) RecordToSAgreement(userID int64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	_, err := s.db.Exec("INSERT OR REPLACE INTO tos_agreements (user_id) VALUES (?)", userID)
-	return err
 }
 
 func (s *ShortTermMemoryStore) SetLoggingOptOut(userID int64, optOut bool) error {

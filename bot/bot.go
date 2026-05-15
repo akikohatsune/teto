@@ -21,7 +21,6 @@ type TetoBot struct {
 	ReplayLogger    *logger.ChatReplayLogger
 	IsTerminated    bool
 	DeletedMessages sync.Map
-	PendingChats    sync.Map // Store pending chat prompts by userID
 }
 
 func NewTetoBot(settings *config.Settings) (*TetoBot, error) {
@@ -76,6 +75,12 @@ func (b *TetoBot) Start() error {
 					Name:        "prompt",
 					Description: "What do you want to say to Teto?",
 					Required:    true,
+				},
+				{
+					Type:        discordgo.ApplicationCommandOptionBoolean,
+					Name:        "ephemeral",
+					Description: "Make the response only visible to you",
+					Required:    false,
 				},
 			},
 		},

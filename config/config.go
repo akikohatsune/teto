@@ -3,7 +3,6 @@ package config
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 

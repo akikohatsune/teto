@@ -1,14 +1,13 @@
 package logger
 
 import (
-	"database/sql"
+	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	_ "modernc.org/sqlite"
 )
 
 type ChatRecord struct {
@@ -28,23 +27,14 @@ type ChatRecord struct {
 }
 
 type ChatReplayLogger struct {
-	DBPath     string
-	TextLogPath string
-	db         *sql.DB
-	mu         sync.Mutex
-	nextID     int
+	LogPath string
+	mu      sync.Mutex
+	nextID  int
 }
 
-func NewChatReplayLogger(dbPath string) *ChatReplayLogger {
-	// Generate text log path from db path
-	dir := filepath.Dir(dbPath)
-	base := filepath.Base(dbPath)
-	nameWithoutExt := base[:len(base)-len(filepath.Ext(base))]
-	textLogPath := filepath.Join(dir, nameWithoutExt+"_readable.txt")
-	
+func NewChatReplayLogger(logPath string) *ChatReplayLogger {
 	return &ChatReplayLogger{
-		DBPath:      dbPath,
-		TextLogPath: textLogPath,
+		LogPath: logPath,
 	}
 }
 
@@ -52,50 +42,41 @@ func (l *ChatReplayLogger) Initialize() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	dir := filepath.Dir(l.DBPath)
+	dir := filepath.Dir(l.LogPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		_ = os.MkdirAll(dir, 0755)
 	}
 
-	db, err := sql.Open("sqlite", l.DBPath)
+	// If file doesn't exist, create it
+	if _, err := os.Stat(l.LogPath); os.IsNotExist(err) {
+		_ = os.WriteFile(l.LogPath, []byte(""), 0644)
+		l.nextID = 1
+		return nil
+	}
+
+	// Find max ID from existing file
+	maxID := 0
+	file, err := os.Open(l.LogPath)
 	if err != nil {
 		return err
 	}
-	l.db = db
+	defer file.Close()
 
-	_, _ = db.Exec("PRAGMA journal_mode=WAL;")
-	_, _ = db.Exec("PRAGMA synchronous=NORMAL;")
-
-	schema := `CREATE TABLE IF NOT EXISTS chat_replay (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		type TEXT NOT NULL DEFAULT 'chat',
-		ts_utc TEXT NOT NULL,
-		guild_id INTEGER,
-		guild_name TEXT,
-		channel_id INTEGER NOT NULL,
-		channel_name TEXT,
-		user_id INTEGER NOT NULL,
-		user_name TEXT NOT NULL,
-		user_display TEXT NOT NULL,
-		trigger TEXT NOT NULL,
-		prompt TEXT NOT NULL,
-		reply_length INTEGER NOT NULL,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`
-
-	if _, err := db.Exec(schema); err != nil {
-		return err
-	}
-
-	// Create index for faster queries
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_chat_replay_id ON chat_replay(id DESC)`)
-	_, _ = db.Exec(`CREATE INDEX IF NOT EXISTS idx_chat_replay_guild ON chat_replay(guild_id)`)
-
-	// Get max ID from database (O(1) instead of O(n))
-	maxID := 0
-	row := db.QueryRow("SELECT COALESCE(MAX(id), 0) FROM chat_replay")
-	if err := row.Scan(&maxID); err != nil && err != sql.ErrNoRows {
-		return err
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		// Skip separators and empty lines
+		if line == "" || line[0] == '-' || line[0] == '[' {
+			continue
+		}
+		
+		// Try to parse JSON from lines that look like records
+		var record ChatRecord
+		if err := json.Unmarshal([]byte(line), &record); err == nil {
+			if record.ID > maxID {
+				maxID = record.ID
+			}
+		}
 	}
 
 	l.nextID = maxID + 1
@@ -110,53 +91,47 @@ func (l *ChatReplayLogger) LogChat(guildID int64, guildName string, channelID in
 		prompt = prompt[:600]
 	}
 
-	// Insert into database
-	query := `INSERT INTO chat_replay 
-		(type, ts_utc, guild_id, guild_name, channel_id, channel_name, user_id, user_name, user_display, trigger, prompt, reply_length)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	recordID := l.nextID
+	l.nextID++
 
-	_, err := l.db.Exec(query,
-		"chat",
-		time.Now().UTC().Format(time.RFC3339),
-		guildID,
-		guildName,
-		channelID,
-		channelName,
-		userID,
-		userName,
-		userDisplay,
-		trigger,
-		prompt,
-		replyLength,
-	)
-
-	if err == nil {
-		l.nextID++
-		
-		// Also write to readable text log
-		l.writeToTextLog(l.nextID-1, time.Now().UTC().Format(time.RFC3339), guildID, guildName, channelID, channelName, userID, userName, userDisplay, trigger, prompt, replyLength)
+	// Create JSON record
+	record := ChatRecord{
+		ID:           recordID,
+		Type:         "chat",
+		TSUTC:        time.Now().UTC().Format(time.RFC3339),
+		GuildID:      guildID,
+		GuildName:    guildName,
+		ChannelID:    channelID,
+		ChannelName:  channelName,
+		UserID:       userID,
+		UserName:     userName,
+		UserDisplay:  userDisplay,
+		Trigger:      trigger,
+		Prompt:       prompt,
+		ReplyLength:  replyLength,
 	}
 
-	return err
-}
+	// Marshal to JSON
+	data, err := json.Marshal(record)
+	if err != nil {
+		return err
+	}
 
-func (l *ChatReplayLogger) writeToTextLog(id int, tsUTC string, guildID int64, guildName string, channelID int64, channelName string, userID int64, userName, userDisplay, trigger, prompt string, replyLength int) {
-	// Format channel display
+	// Format readable entry
 	channelDisplay := fmt.Sprintf("#%s", channelName)
 	if channelName == "" {
 		channelDisplay = fmt.Sprintf("(DM %d)", channelID)
 	}
-	
-	// Format guild display
+
 	guildDisplay := guildName
 	if guildName == "" {
 		guildDisplay = fmt.Sprintf("Guild %d", guildID)
 	}
-	
-	// Build text entry
+
 	entry := fmt.Sprintf(
-		"[%s] %s | %s | @%s (%s)\nPrompt: %s\nReply Length: %d chars\n%s\n\n",
-		tsUTC,
+		"%s\n[%s] %s | %s | @%s (%s)\nPrompt: %s\nReply Length: %d chars\n%s\n\n",
+		string(data),
+		record.TSUTC,
 		guildDisplay,
 		channelDisplay,
 		userName,
@@ -165,52 +140,51 @@ func (l *ChatReplayLogger) writeToTextLog(id int, tsUTC string, guildID int64, g
 		replyLength,
 		"─────────────────────────────────",
 	)
-	
-	// Append to text log file
-	f, err := os.OpenFile(l.TextLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	// Append to file
+	f, err := os.OpenFile(l.LogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
-	
-	_, _ = f.WriteString(entry)
+
+	_, err = f.WriteString(entry)
+	return err
 }
 
 func (l *ChatReplayLogger) ReadRecentIndexed(limit int, guildID int64) ([]ChatRecord, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	query := `SELECT id, type, ts_utc, guild_id, guild_name, channel_id, channel_name, user_id, user_name, user_display, trigger, prompt, reply_length 
-	          FROM chat_replay`
-
-	if guildID > 0 {
-		query += ` WHERE guild_id = ?`
-	}
-
-	query += ` ORDER BY id DESC LIMIT ?`
-
-	var rows *sql.Rows
-	var err error
-
-	if guildID > 0 {
-		rows, err = l.db.Query(query, guildID, limit)
-	} else {
-		rows, err = l.db.Query(query, limit)
-	}
-
+	file, err := os.Open(l.LogPath)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer file.Close()
 
 	var records []ChatRecord
-	for rows.Next() {
-		var r ChatRecord
-		err := rows.Scan(&r.ID, &r.Type, &r.TSUTC, &r.GuildID, &r.GuildName, &r.ChannelID, &r.ChannelName, &r.UserID, &r.UserName, &r.UserDisplay, &r.Trigger, &r.Prompt, &r.ReplyLength)
-		if err != nil {
-			continue
+	scanner := bufio.NewScanner(file)
+	
+	for scanner.Scan() {
+		line := scanner.Text()
+		
+		// Parse JSON records
+		var record ChatRecord
+		if err := json.Unmarshal([]byte(line), &record); err == nil {
+			if guildID == 0 || record.GuildID == guildID {
+				records = append(records, record)
+			}
 		}
-		records = append(records, r)
+	}
+
+	// Keep only last 'limit' records
+	if len(records) > limit {
+		records = records[len(records)-limit:]
+	}
+
+	// Reverse to show newest first
+	for i, j := 0, len(records)-1; i < j; i, j = i+1, j-1 {
+		records[i], records[j] = records[j], records[i]
 	}
 
 	return records, nil
@@ -220,38 +194,31 @@ func (l *ChatReplayLogger) GetByIndex(recordID int, guildID int64) (*ChatRecord,
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	query := `SELECT id, type, ts_utc, guild_id, guild_name, channel_id, channel_name, user_id, user_name, user_display, trigger, prompt, reply_length 
-	          FROM chat_replay WHERE id = ?`
-
-	if guildID > 0 {
-		query += ` AND guild_id = ?`
-	}
-
-	row := l.db.QueryRow(query, recordID)
-
-	var r ChatRecord
-	var err error
-
-	if guildID > 0 {
-		err = row.Scan(&r.ID, &r.Type, &r.TSUTC, &r.GuildID, &r.GuildName, &r.ChannelID, &r.ChannelName, &r.UserID, &r.UserName, &r.UserDisplay, &r.Trigger, &r.Prompt, &r.ReplyLength)
-	} else {
-		err = row.Scan(&r.ID, &r.Type, &r.TSUTC, &r.GuildID, &r.GuildName, &r.ChannelID, &r.ChannelName, &r.UserID, &r.UserName, &r.UserDisplay, &r.Trigger, &r.Prompt, &r.ReplyLength)
-	}
-
+	file, err := os.Open(l.LogPath)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil
-		}
 		return nil, err
 	}
+	defer file.Close()
 
-	return &r, nil
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		
+		var record ChatRecord
+		if err := json.Unmarshal([]byte(line), &record); err == nil {
+			if record.ID == recordID {
+				if guildID == 0 || record.GuildID == guildID {
+					return &record, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil
 }
 
 func (l *ChatReplayLogger) Close() error {
-	if l.db != nil {
-		return l.db.Close()
-	}
+	// No database to close
 	return nil
 }
 

@@ -1,4 +1,4 @@
-# Teto - Discord AI Bot
+# Teto 
 
 Discord AI role-play built with **Go** + **NVIDIA NIM**. Fast, secure, and very fat.
 

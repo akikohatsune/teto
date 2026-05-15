@@ -100,6 +100,7 @@ func (b *TetoBot) Start() error {
 func (b *TetoBot) Close() {
 	_ = b.Session.Close()
 	_ = b.Memory.Close()
+	_ = b.ReplayLogger.Close()
 }
 
 func (b *TetoBot) ReloadRules() {

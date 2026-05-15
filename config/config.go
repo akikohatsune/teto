@@ -124,7 +124,7 @@ func LoadSettings() *Settings {
 		NvidiaModel:                 GetEnvStr("NVIDIA_MODEL", "google/gemma-3n-e4b-it"),
 		SystemRulesMD:               systemRulesMD,
 		SystemPrompt:                systemPrompt,
-		ChatReplayLogPath:           GetEnvStr("CHAT_REPLAY_LOG_PATH", filepath.Join("logger", "chat_replay.jsonl")),
+		ChatReplayLogPath:           GetEnvStr("CHAT_REPLAY_DB_PATH", "chat_replay.db"),
 		ChatMemoryDBPath:            GetEnvStr("CHAT_MEMORY_DB_PATH", "chat_memory.db"),
 		BanDBPath:                   GetEnvStr("BAN_DB_PATH", "ban_control.db"),
 		CallnamesDBPath:             GetEnvStr("CALLNAMES_DB_PATH", "callnames.db"),

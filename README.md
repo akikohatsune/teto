@@ -2,11 +2,6 @@
 
 Discord AI role-play built with **Go** + **NVIDIA NIM**. Fast, secure, and very fat.
 
-[![Go](https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go)](https://go.dev/)
-[![NVIDIA](https://img.shields.io/badge/NVIDIA-76B900?style=flat&logo=nvidia)](https://www.nvidia.com/)
-[![Discord](https://img.shields.io/badge/Discord-5865F2?style=flat&logo=discord)](https://discord.com/)
-[![MIT](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
-
 ## Features
 
 -  **NVIDIA NIM** - Fast processing + image analysis

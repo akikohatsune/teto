@@ -82,21 +82,21 @@ func (b *TetoBot) OnInteractionCreate(s *discordgo.Session, i *discordgo.Interac
 				log.Printf("InteractionRespond error: %v", err)
 			}
 		} else if data.Name == "system_md" {
-			// Read system_rules.md
-			content, err := os.ReadFile(b.Settings.SystemRulesMD)
+			// Open system_rules.md
+			file, err := os.Open(b.Settings.SystemRulesMD)
 			if err != nil {
 				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
-						Content: fmt.Sprintf("Error reading file: %v", err),
+						Content: fmt.Sprintf("Error opening file: %v", err),
 						Flags:   discordgo.MessageFlagsEphemeral,
 					},
 				})
 				return
 			}
+			defer file.Close()
 
-			// Respond with the content (ephemeral)
-			// Using SendLongFollowup to handle potential character limits
+			// Defer response to avoid timeout
 			_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 				Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
 				Data: &discordgo.InteractionResponseData{
@@ -104,7 +104,21 @@ func (b *TetoBot) OnInteractionCreate(s *discordgo.Session, i *discordgo.Interac
 				},
 			})
 
-			b.SendLongFollowup(i, "📜 **Current System Rules:**\n\n"+string(content), true)
+			// Send the file as an attachment (ephemeral)
+			_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+				Content: "📜 **Current System Rules (File):**",
+				Files: []*discordgo.File{
+					{
+						Name:        "system_rules.md",
+						ContentType: "text/markdown",
+						Reader:      file,
+					},
+				},
+				Flags: discordgo.MessageFlagsEphemeral,
+			})
+			if err != nil {
+				log.Printf("FollowupMessageCreate error: %v", err)
+			}
 		}
 		return
 	}

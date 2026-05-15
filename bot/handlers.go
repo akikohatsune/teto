@@ -2,6 +2,7 @@ package bot
 
 import (
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"fmt"
@@ -80,6 +81,30 @@ func (b *TetoBot) OnInteractionCreate(s *discordgo.Session, i *discordgo.Interac
 			if err != nil {
 				log.Printf("InteractionRespond error: %v", err)
 			}
+		} else if data.Name == "system_md" {
+			// Read system_rules.md
+			content, err := os.ReadFile(b.Settings.SystemRulesMD)
+			if err != nil {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: fmt.Sprintf("Error reading file: %v", err),
+						Flags:   discordgo.MessageFlagsEphemeral,
+					},
+				})
+				return
+			}
+
+			// Respond with the content (ephemeral)
+			// Using SendLongFollowup to handle potential character limits
+			_ = s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseDeferredChannelMessageWithSource,
+				Data: &discordgo.InteractionResponseData{
+					Flags: discordgo.MessageFlagsEphemeral,
+				},
+			})
+
+			b.SendLongFollowup(i, "📜 **Current System Rules:**\n\n"+string(content), true)
 		}
 		return
 	}

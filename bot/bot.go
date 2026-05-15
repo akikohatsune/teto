@@ -88,6 +88,10 @@ func (b *TetoBot) Start() error {
 			Name:        "dontsendmydata",
 			Description: "Opt-out of chat replay logging",
 		},
+		{
+			Name:        "system_md",
+			Description: "View the full system rules (system_rules.md)",
+		},
 	}
 
 

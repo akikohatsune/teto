@@ -21,6 +21,7 @@ type TetoBot struct {
 	ReplayLogger    *logger.ChatReplayLogger
 	IsTerminated    bool
 	DeletedMessages sync.Map
+	PendingChats    sync.Map // Store pending chat prompts by userID
 }
 
 func NewTetoBot(settings *config.Settings) (*TetoBot, error) {

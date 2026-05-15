@@ -12,6 +12,9 @@ func (b *TetoBot) StartBackgroundTasks() {
 	if b.Settings.RestartIntervalHours > 0 {
 		go b.scheduledRestartLoop()
 	}
+	if b.Settings.CheckUpdateIntervalHours > 0 {
+		go b.AutoUpdateLoop(b.Settings.CheckUpdateIntervalHours)
+	}
 }
 
 func (b *TetoBot) memoryCleanupLoop() {

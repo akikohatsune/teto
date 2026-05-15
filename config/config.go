@@ -35,6 +35,7 @@ type Settings struct {
 	KomiFilterBlockResponseOnLeak bool
 	OwnerID                     string
 	RestartIntervalHours        int
+	CheckUpdateIntervalHours    int
 }
 
 func GetEnvStr(name, defaultValue string) string {
@@ -137,6 +138,7 @@ func LoadSettings() *Settings {
 		KomiFilterBlockResponseOnLeak: GetEnvBool("KOMIFILTER_BLOCK_RESPONSE_ON_LEAK", true),
 		OwnerID:                     GetEnvStr("OWNER_USER_ID", ""),
 		RestartIntervalHours:        GetEnvInt("RESTART_INTERVAL_HOURS", 12),
+		CheckUpdateIntervalHours:    GetEnvInt("CHECK_UPDATE_INTERVAL_HOURS", 24),
 	}
 }
 

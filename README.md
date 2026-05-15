@@ -66,5 +66,13 @@ Uses SQLite:
 - `callnames.db` - Custom nicknames
 
 ---
+## Note
+Teto can be used through DMs or added to a server (recommended to keep it in a separate channel).
+- [Link add bot](https://discord.com/oauth2/authorize?client_id=1095321922537005219)
 
-License: MIT | By: [Akiko Hatsune](https://github.com/akikohatsune)
+I’ll keep it online as long as possible and make it as stable as I can.
+
+
+---
+
+License: MIT | By: [akikohatsune](https://github.com/akikohatsune)

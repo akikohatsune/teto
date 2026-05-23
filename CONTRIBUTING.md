@@ -1,4 +1,4 @@
-# Contributing to Teto (Go Edition)
+# Contributing to Teto
 
 First off, thank you for considering contributing to Teto! It's people like you that make open-source projects great.
 

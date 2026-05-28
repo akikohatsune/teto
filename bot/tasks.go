@@ -2,6 +2,7 @@ package bot
 
 import (
 	"log"
+	"os"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -43,7 +44,8 @@ func (b *TetoBot) scheduledRestartLoop() {
 			b.Session.ChannelMessageSend(b.Settings.OwnerID, "Performing scheduled restart...")
 		}
 		b.Close()
-		log.Fatal("Scheduled restart exit.")
+		log.Println("Scheduled restart exit.")
+		os.Exit(0)
 	}
 }
 
